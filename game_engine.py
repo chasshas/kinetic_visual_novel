@@ -2,7 +2,77 @@ import ply.lex as lex
 import ply.yacc as yacc
 import re
 
+import pygame
 
+#display
+width = 1080
+height = 720
+fps = 60
+
+#font
+def get_font(size: int, style: str = "default" ):
+    if style == "default":
+        return pygame.font.Font("assets/fonts/NanumGothic.ttf", size)
+    return pygame.font.Font(f"assets/fonts/NanumGothic{style}.ttf", size)
+font_default = get_font(size=20)
+#colors
+
+#player manage
+class Player:
+    def __init__(self, adv,art, literature, physical):
+        pass
+
+#character manage
+class Character(Player):
+    def __init__(self, ):
+
+#dialogue
+class Utterance:
+    def __init__(self, speaker, text):
+        self.speaker = speaker
+        self.text = text
+
+#commands for functions
+
+#commands
+class Command:
+    def __init__(self, command, args):
+        self.command = command
+        self.args = args
+
+    def execute(self):
+        print(self.command)
+
+#scene
+class Scene:
+    """structured with command, utterance"""
+    def __init__(self, components:list):
+        self.components = components
+
+#dialogue render
+class DialogueBox:
+    def __init__(self, screen, write_interval: int = 20):
+        self.screen = screen
+        self.dialogue = ""
+    def draw(self):
+        pass
+
+
+#button
+class Button:
+    def __init__(self, screen, img, size):
+        self.screen = screen
+        self.img = img
+        self.size = size
+
+#menu
+class MenuRenderer:
+    def __init__(self, screen, Buttons):
+        self.screen = screen
+        self.Buttons = Buttons
+
+
+#interpreter
 class VisualNovelInterpreter:
     def __init__(self):
         self.scenes = {}
@@ -562,7 +632,12 @@ class VisualNovelInterpreter:
                 self.close_dialogue()
                 break
 
+#visual novel form management
+class VisualNovelManager:
+    def __init__(self, file):
+        pass
 
+#
 # Example usage
 if __name__ == "__main__":
     interpreter = VisualNovelInterpreter()
@@ -605,3 +680,5 @@ end
 
     print("=== Running Visual Novel Script ===")
     interpreter.run_script(test_script)
+
+
