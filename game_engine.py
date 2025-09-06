@@ -25,6 +25,7 @@ class Player:
 #character manage
 class Character(Player):
     def __init__(self, ):
+        pass
 
 #dialogue
 class Utterance:
