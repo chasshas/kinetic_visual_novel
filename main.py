@@ -31,28 +31,28 @@ class GameState(Enum):
 
 
 class CharacterType(Enum):
-    haram = "유하람"
-    eunyu = "최은유"
-    yuah = "한유아"
-    shihyun = "백시현"
+    PROTAGONIST = "주인공"
+    HEROINE_1 = "히로인1"
+    HEROINE_2 = "히로인2"
+    HEROINE_3 = "히로인3"
 
 
 class GameData:
     def __init__(self):
         # 플레이어 스탯
         self.stats = {
-            "art": 0,
-            "literature": 0,
-            "physical": 0,
-            "luck": 0,
-            "sense": 0
+            "예술": 0,
+            "문학": 0,
+            "체육": 0,
+            "운": 0,
+            "눈치": 0
         }
 
         # 히로인 호감도
         self.affection = {
-            "eunyu": 0,
-            "yuah": 0,
-            "shihyun": 0
+            "히로인1": 0,
+            "히로인2": 0,
+            "히로인3": 0
         }
 
         # 게임 진행 상태
@@ -93,9 +93,9 @@ class Game:
         self.player_y = 5
 
         # 폰트
-        self.font = pygame.font.Font("assets/fonts/NanumGothic.ttf", 36)
-        self.small_font = pygame.font.Font("assets/fonts/NanumGothic.ttf", 24)
-        self.large_font = pygame.font.Font("assets/fonts/NanumGothic.ttf", 48)
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        self.large_font = pygame.font.Font(None, 48)
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -431,11 +431,11 @@ class Game:
         ui_texts = [
             f"Day: {self.game_data.day}",
             f"Actions: {self.game_data.actions_today}/{ACTIONS_PER_DAY}",
-            f"art: {self.game_data.stats['art']}",
-            f"literature: {self.game_data.stats['literature']}",
-            f"physical: {self.game_data.stats['physical']}",
-            f"luck: {self.game_data.stats['luck']}",
-            f"sense: {self.game_data.stats['sense']}"
+            f"예술: {self.game_data.stats['예술']}",
+            f"문학: {self.game_data.stats['문학']}",
+            f"체육: {self.game_data.stats['체육']}",
+            f"운: {self.game_data.stats['운']}",
+            f"눈치: {self.game_data.stats['눈치']}"
         ]
 
         for i, text in enumerate(ui_texts):
