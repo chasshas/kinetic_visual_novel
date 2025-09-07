@@ -1,13 +1,9 @@
 {
   "width": 1,
   "height": 1,
-  "base": {
-
-  },
   "structures": [
     {"name":  "library",
       "stats": ["literature", 10]
     }
-  ],
-  "extras": []
+  ]
 }

@@ -1,1 +1,19 @@
-{"defaults": {"font": {"name": "nanumgothic", "size": "20", "regular_path": "assets/fonts/NanumGothic.ttf", "bold_path": "assets/fonts/NanumGothicBold.ttf"}}}
+{
+    "defaults": {
+        "font": {
+            "name": "Malgun Gothic",
+            "point_size": 14,
+            "style": "regular"
+        }
+    },
+    "text_box": {
+        "colours": {
+            "normal_text": "#FFFFFF"
+        },
+        "font": {
+            "name": "Malgun Gothic",
+            "point_size": 16,
+            "style": "regular"
+        }
+    }
+}

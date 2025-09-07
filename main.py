@@ -3,13 +3,12 @@ import sys
 import json
 import ply.lex as lex
 import ply.yacc as yacc
-import pygame_gui
 import random
 import os
 
 
 # ====================================================================
-# [1] 기존 컴파일러 클래스: 변경 없음
+# [1] 기존 컴파일러 클래스: 변경 사항 없음
 # ====================================================================
 class VnCompiler:
     tokens = (
@@ -31,7 +30,7 @@ class VnCompiler:
         return t
 
     def t_COMMAND(self, t):
-        r'\b(bg|bgm|locate|stat|goto|place|remove)\b'
+        r'\b(bg|bgm|locate|stat|goto|place|remove|end)\b'
         return t
 
     def t_ID(self, t):
@@ -176,6 +175,7 @@ class VnCompiler:
 
 # Pygame 초기화
 pygame.init()
+pygame.font.init()
 
 # 화면 설정
 SCREEN_WIDTH = 1280
@@ -187,7 +187,24 @@ clock = pygame.time.Clock()
 # 색상
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+GRAY = (50, 50, 50)
+LIGHT_GRAY = (100, 100, 100)
 
+
+def scale_image(image, max_width, max_height):
+    original_width, original_height = image.get_size()
+    width_ratio = max_width / original_width
+    height_ratio = max_height / original_height
+    scale_ratio = min(width_ratio, height_ratio)
+    new_width = int(original_width * scale_ratio)
+    new_height = int(original_height * scale_ratio)
+    return pygame.transform.smoothscale(image, (new_width, new_height))
+
+
+def render_text_to_surf(text, surf, font):
+    text_surf = font.render(text, True, WHITE)
+    text_rect = text_surf.get_rect(center=surf.get_rect().center)
+    surf.blit(text_surf, text_rect)
 
 # ====================================================================
 # [2] Character, Player, Map 클래스: 변경 없음
@@ -199,8 +216,6 @@ class Character:
         self.dialogues = dialogues if dialogues else {}
 
     def get_main_dialogue(self, conditions):
-        """메인 대화 조건을 확인하고 대화 스크립트를 반환합니다."""
-        # TODO: 조건 충족 여부에 따라 메인 대화 스크립트 반환 로직 구현
         pass
 
 
@@ -220,13 +235,12 @@ class Player(Character):
     def increase_stat(self, stat_name, value):
         if stat_name in self.stats:
             self.stats[stat_name] += value
-        # TODO: 호감도 증가 로직도 여기에 포함시킬 수 있습니다.
 
 
 class Map:
     def __init__(self):
         self.map_data = None
-        self.load_map("data/map_data.json")
+        self.load_map("data/map.json")
         self.x = 0
         self.y = 0
         self.width = 0
@@ -238,7 +252,6 @@ class Map:
         self.get_grid()
 
     def load_map(self, filename):
-        """JSON 파일에서 맵 데이터를 로드합니다."""
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 self.map_data = json.load(f)
@@ -295,126 +308,87 @@ class Map:
 
         self.grid = grid
 
-
-
-
     def move(self, vector):
         self.x += vector[0]
         if self.x < 0:
             self.x = 0
         elif self.x > self.width:
-            self.x = self.width-1
+            self.x = self.width - 1
         self.y += vector[1]
         if self.y < 0:
             self.y = 0
         elif self.y > self.height:
-            self.y = self.height-1
+            self.y = self.height - 1
+        st = self.check_for_structure()
+        if not st:
+            self.sudden_dialogue()
 
     def render(self):
-        """맵 타일을 화면에 그립니다."""
-        # TODO: self.map_data를 사용하여 타일 기반 맵 그리기
         pass
 
-    def check_for_structure(self, x, y):
-        """플레이어 위치에 구조물이 있는지 확인합니다."""
-        # TODO: 구조물 존재 여부 확인 및 상호작용 로직
-        pass
+    def check_for_structure(self):
+        x = self.x
+        y = self.y
+        structures = self.structure_place
+        for structure in structures:
+            if structure["pos"][0] == x and structure["pos"][1] == y:
+                exec(structure["code"])
+                return 1
+        return 0
+
+    def sudden_dialogue(self):
+        if random.random() < 0.1:
+            return []
 
 
 # ====================================================================
 # [3] Game 클래스: pygame-gui 통합 및 UI 관리 로직 전면 개편
 # ====================================================================
+
+class Button:
+    def __init__(self, rect, image, callback=None):
+        self.rect = rect
+        self.image = image
+        self.callback = callback
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.rect.collidepoint(event.pos):
+                if self.callback:
+                    self.callback()
+                return True
+        return False
+
+    def draw(self, surface):
+        surface.blit(self.image, self.rect)
+
+
 class Game:
     def __init__(self):
-        # Pygame GUI 매니저 초기화
-        self.ui_manager = pygame_gui.UIManager((SCREEN_WIDTH, SCREEN_HEIGHT), 'data/themes/theme.json')
-
-        # ===> 오류 해결을 위해 추가된 변수들 <===
-        self.game_running = True  # 게임 루프를 제어하는 변수
-        self.state = "TITLE"       # 게임의 현재 상태를 나타내는 변수
-        self.placed_objects = {}   # 'place' 커맨드로 배치된 객체를 저장할 딕셔너리
-
-        # UI 그룹 초기화
-        self.title_ui_panel = None
-        self.settings_popup = None
-        self.credits_popup = None
-
-        #데이터 초기화
+        self.game_running = True
+        self.state = "TITLE"
+        self.placed_objects = {}
+        self.player = Player()
         self.map_data = Map()
+        self.completed_conversation = []
 
-        # 타이틀 화면 UI 생성
-        self.create_title_screen_ui()
+        try:
+            self.main_font = pygame.font.SysFont("Malgun Gothic", 24)
+            self.title_font = pygame.font.SysFont("Malgun Gothic", 48)
+        except:
+            self.main_font = pygame.font.SysFont(pygame.font.get_default_font(), 24)
+            self.title_font = pygame.font.SysFont(pygame.font.get_default_font(), 48)
 
-    def create_title_screen_ui(self):
-        """타이틀 화면의 UI 요소들을 패널에 담아 생성합니다."""
-        # 타이틀 UI를 담을 패널 생성
-        self.title_ui_panel = pygame_gui.elements.UIPanel(
-            relative_rect=pygame.Rect((0, 0), (SCREEN_WIDTH, SCREEN_HEIGHT)),
-            starting_height=0,
-            manager=self.ui_manager,
-            visible=True
-        )
-
-        button_width, button_height = 200, 50
-
-        new_game_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((SCREEN_WIDTH // 2 - button_width // 2, SCREEN_HEIGHT // 2 - 50),
-                                      (button_width, button_height)),
-            text='새 게임',
-            manager=self.ui_manager,
-            container=self.title_ui_panel,
-            object_id='#new_game_button'
-        )
-        load_game_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((SCREEN_WIDTH // 2 - button_width // 2, SCREEN_HEIGHT // 2 + 10),
-                                      (button_width, button_height)),
-            text='불러오기',
-            manager=self.ui_manager,
-            container=self.title_ui_panel,
-            object_id='#load_game_button'
-        )
-        settings_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((SCREEN_WIDTH // 2 - button_width // 2, SCREEN_HEIGHT // 2 + 70),
-                                      (button_width, button_height)),
-            text='환경설정',
-            manager=self.ui_manager,
-            container=self.title_ui_panel,
-            object_id='#settings_button'
-        )
-        credits_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((SCREEN_WIDTH // 2 - button_width // 2, SCREEN_HEIGHT // 2 + 130),
-                                      (button_width, button_height)),
-            text='크레딧',
-            manager=self.ui_manager,
-            container=self.title_ui_panel,
-            object_id='#credits_button'
-        )
-        quit_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((SCREEN_WIDTH // 2 - button_width // 2, SCREEN_HEIGHT // 2 + 190),
-                                      (button_width, button_height)),
-            text='게임 종료',
-            manager=self.ui_manager,
-            container=self.title_ui_panel,
-            object_id='#quit_button'
-        )
-
-    def hide_title_ui(self):
-        """타이틀 화면의 모든 UI를 숨깁니다."""
-        self.title_ui_panel.hide()
-
-    def show_title_ui(self):
-        """타이틀 화면의 모든 UI를 표시합니다."""
-        self.title_ui_panel.show()
+        # 버튼 인스턴스를 저장할 리스트를 초기화만 합니다.
+        self.buttons = []
 
     def start_new_game(self):
         self.state = "MAP"
-        self.hide_title_ui()
-        # TODO: 게임 초기 상태 설정 (스탯, 호감도 등)
+        print("새 게임 시작!")
 
     def load_game(self):
         self.state = "MAP"
-        self.hide_title_ui()
-        # TODO: 저장된 게임 상태를 로드하는 로직 구현
+        print("게임 불러오기!")
 
     def end_game(self):
         self.game_running = False
@@ -422,46 +396,21 @@ class Game:
     def next_day(self):
         self.player.activities_today = 0
         self.player.day += 1
-        # TODO: 다음 날 시작 대화 등 추가 로직 구현
-
-    def take_activity(self, activity_type, target=None):
-        if self.player.activities_today < 2:
-            self.player.activities_today += 1
-            if activity_type == "dialogue":
-                # TODO: 캐릭터와의 대화 시작 로직
-                pass
-            elif activity_type == "map":
-                # TODO: 맵 활동 (구조물 상호작용 등) 로직
-                pass
-
-            if self.player.activities_today >= 2:
-                self.state = "VISUAL_NOVEL"
-                # TODO: 하루를 마치는 대화 스크립트 로드 및 시작
-                pass
-        else:
-            print("오늘 할 수 있는 활동 횟수를 모두 소진했습니다.")
 
     def run_dialogue_command(self, command):
         cmd = command['command']
         args = command['args']
         if cmd == 'bg':
-            # TODO: 배경 이미지 변경 로직 (args[0]은 파일명)
             pass
         elif cmd == 'bgm':
-            # TODO: BGM 변경 로직 (args[0]은 파일명)
             pass
         elif cmd == 'locate':
-            # self.current_location 변수가 없으므로 주석 처리
-            # self.current_location = args[0]
             pass
         elif cmd == 'stat':
-            # self.player 변수가 없으므로 주석 처리
-            # stat_name, value = args[0], int(args[1])
-            # self.player.increase_stat(stat_name, value)
-            pass
+            stat_name, value = args[0], int(args[1])
+            self.player.increase_stat(stat_name, value)
         elif cmd == 'goto':
             target_scene = args[0]
-            # TODO: 특정 씬으로 이동하는 로직
             pass
         elif cmd == 'place':
             objname, filename = args[0], args[1]
@@ -484,75 +433,102 @@ class Game:
                 del self.placed_objects[objname]
             else:
                 print(f"Warning: Object '{objname}' not found for removal.")
+        elif cmd == 'end':
+            self.state = "MAP"
 
     def process_dialogue(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            # TODO: 다음 대사로 진행하는 로직
             pass
-        # TODO: 기타 선택지 처리 로직
         pass
 
     def process_map(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_w or event.key == pygame.K_UP:
                 self.map_data.move([0, -1])
+                self.player.activities_today += 1
             elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
                 self.map_data.move([0, 1])
+                self.player.activities_today += 1
             elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
                 self.map_data.move([-1, 0])
+                self.player.activities_today += 1
             elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
                 self.map_data.move([1, 0])
-
-            # TODO: 맵 상호작용 (캐릭터 만남, 구조물 접근 등) 로직
-            pass
+                self.player.activities_today += 1
 
     def render_title_screen(self):
         screen.fill(BLACK)
-        title_font = pygame.font.Font("assets/fonts/NanumGothic.ttf", 48)
-        title_text = title_font.render("My Pygame Game", True, WHITE)
+        title_text = self.title_font.render("My Pygame Game", True, WHITE)
         screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, 200))
-        # UI 요소는 UIManager가 그립니다.
+
+        self.buttons.clear()  # 매 프레임마다 버튼 리스트 초기화
+
+        button_width, button_height = 200, 50
+
+        # 텍스트 렌더링을 위한 임시 함수
+
+
+
+        # 새 게임 버튼 동적 생성
+        normal_surf = pygame.Surface((button_width, button_height))
+        normal_surf.fill(GRAY)
+        render_text_to_surf("새 게임", normal_surf, self.main_font)
+        self.buttons.append(
+            Button(
+                pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, SCREEN_HEIGHT // 2 - 50, button_width,
+                            button_height),
+                normal_surf, self.start_new_game
+            )
+        )
+
+        # 불러오기 버튼 동적 생성
+        normal_surf_load = pygame.Surface((button_width, button_height))
+        normal_surf_load.fill(GRAY)
+        render_text_to_surf("불러오기", normal_surf_load, self.main_font)
+        self.buttons.append(
+            Button(
+                pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, SCREEN_HEIGHT // 2 + 10, button_width,
+                            button_height),
+                normal_surf_load, self.load_game
+            )
+        )
+
+        # 게임 종료 버튼 동적 생성
+        normal_surf_quit = pygame.Surface((button_width, button_height))
+        normal_surf_quit.fill(GRAY)
+        render_text_to_surf("게임 종료", normal_surf_quit, self.main_font)
+        self.buttons.append(
+            Button(
+                pygame.Rect(SCREEN_WIDTH // 2 - button_width // 2, SCREEN_HEIGHT // 2 + 70, button_width,
+                            button_height),
+                normal_surf_quit, self.end_game
+            )
+        )
 
     def render_dialogue(self):
-        # TODO: 배경 이미지, 텍스트 박스, 대사, 이름 등 그리기 로직
         for obj in self.placed_objects.values():
             screen.blit(obj['image'], obj['rect'])
 
     def render_map(self):
-        # TODO: 맵 타일, 구조물, 플레이어 캐릭터 그리기 로직
+        self.map_data.render()
+
+    def render_status(self):
+        stat_data = self.player.stats
+
+    def render_menu(self):
         pass
 
     def run(self):
         while self.game_running:
-            time_delta = clock.tick(60) / 1000.0
-
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.end_game()
+                # Button 클래스의 handle_event() 메서드를 호출하여 이벤트 처리
+                if self.buttons:
+                    for button in self.buttons:
+                        if button.handle_event(event):
+                            break  # 버튼이 클릭되면 더 이상 다른 버튼을 확인할 필요 없음
 
-                # UIManager에 모든 이벤트를 전달
-                self.ui_manager.process_events(event)
-
-                # pygame-gui 위젯 이벤트 처리
-                if event.type == pygame.USEREVENT:
-                    if event.user_type == pygame_gui.UI_BUTTON_PRESSED:
-                        # 오브젝트 ID를 사용하여 버튼 구분
-                        button_id = event.ui_element.get_object_ids()[0]
-                        if button_id == '#new_game_button':
-                            self.start_new_game()
-                        elif button_id == '#load_game_button':
-                            self.load_game()
-                        # settings와 credits 팝업에 대한 메서드가 없으므로 주석 처리
-                        # elif button_id == '#settings_button':
-                        #     self.show_settings_popup()
-                        # elif button_id == '#credits_button':
-                        #     self.show_credits_popup()
-                        elif button_id == '#quit_button':
-                            self.end_game()
-                        elif button_id == '#close_button':
-                            event.ui_element.get_container().hide()
-
-                # 기존의 수동 이벤트 처리 로직 (필요시 사용)
                 if self.state == "VISUAL_NOVEL":
                     self.process_dialogue(event)
                 elif self.state == "MAP":
@@ -566,25 +542,13 @@ class Game:
             elif self.state == "MAP":
                 self.render_map()
 
-            # UIManager 업데이트 및 UI 그리기
-            self.ui_manager.update(time_delta)
-            self.ui_manager.draw_ui(screen)
-
             pygame.display.flip()
+            clock.tick(60)
 
 
 # ====================================================================
 # [4] 실행
 # ====================================================================
 if __name__ == "__main__":
-
-    # 테마 폴더 생성
-
-    if not os.path.exists('data/themes'):
-        os.makedirs('data/themes')
-        with open('data/themes/theme.json', 'w', encoding='utf-8') as f:
-            f.write('{"defaults": {"font": {"name": "NanumGothic", "size": "20", "regular_path": "assets/fonts/NanumGothic.ttf", "bold_path": "assets/fonts/NanumGothicBold.ttf"}}}')
-
     game = Game()
     game.run()
-    "assets/fonts/NanumGothic.ttf"
