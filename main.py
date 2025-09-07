@@ -7,8 +7,6 @@ import pygame_gui
 import random
 import os
 
-from game_engine import width
-
 
 # ====================================================================
 # [1] 기존 컴파일러 클래스: 변경 없음
@@ -286,21 +284,31 @@ class Map:
             grid_x = []
             for y in range(self.height):
                 if (x, y) in pos_list:
-                    grid_x.append(structure["pos"][0])
+                    for i in structures:
+                        if i["pos"][0] == x and i["pos"][1] == y:
+                            grid_x.append(i)
                 elif (x, y) == [self.x, self.y]:
                     grid_x.append(1)
                 else:
                     grid_x.append(0)
             grid.append(grid_x)
 
-
+        self.grid = grid
 
 
 
 
     def move(self, vector):
-        for i in vector:
-            pass
+        self.x += vector[0]
+        if self.x < 0:
+            self.x = 0
+        elif self.x > self.width:
+            self.x = self.width-1
+        self.y += vector[1]
+        if self.y < 0:
+            self.y = 0
+        elif self.y > self.height:
+            self.y = self.height-1
 
     def render(self):
         """맵 타일을 화면에 그립니다."""
@@ -330,6 +338,9 @@ class Game:
         self.title_ui_panel = None
         self.settings_popup = None
         self.credits_popup = None
+
+        #데이터 초기화
+        self.map_data = Map()
 
         # 타이틀 화면 UI 생성
         self.create_title_screen_ui()
@@ -484,24 +495,20 @@ class Game:
     def process_map(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_w or event.key == pygame.K_UP:
-                # TODO: 상방향 이동 로직
-                pass
+                self.map_data.move([0, -1])
             elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
-                # TODO: 하방향 이동 로직
-                pass
+                self.map_data.move([0, 1])
             elif event.key == pygame.K_a or event.key == pygame.K_LEFT:
-                # TODO: 좌방향 이동 로직
-                pass
+                self.map_data.move([-1, 0])
             elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
-                # TODO: 우방향 이동 로직
-                pass
+                self.map_data.move([1, 0])
 
             # TODO: 맵 상호작용 (캐릭터 만남, 구조물 접근 등) 로직
             pass
 
     def render_title_screen(self):
         screen.fill(BLACK)
-        title_font = pygame.font.Font(None, 48)
+        title_font = pygame.font.Font("assets/fonts/NanumGothic.ttf", 48)
         title_text = title_font.render("My Pygame Game", True, WHITE)
         screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, 200))
         # UI 요소는 UIManager가 그립니다.
@@ -573,12 +580,11 @@ if __name__ == "__main__":
 
     # 테마 폴더 생성
 
-
     if not os.path.exists('data/themes'):
         os.makedirs('data/themes')
         with open('data/themes/theme.json', 'w', encoding='utf-8') as f:
-            f.write(
-                '{"defaults": {"font": {"name": "nanumgothic", "size": "20", "regular_path": "assets/fonts/Nanumgothic.ttf", "bold_path": "assets/fonts/NanumgothicBold.ttf"}}}')
+            f.write('{"defaults": {"font": {"name": "NanumGothic", "size": "20", "regular_path": "assets/fonts/NanumGothic.ttf", "bold_path": "assets/fonts/NanumGothicBold.ttf"}}}')
 
     game = Game()
     game.run()
+    "assets/fonts/NanumGothic.ttf"

@@ -1,1 +1,1 @@
-{"defaults": {"font": {"name": "malgungothic", "size": "20", "regular_path": "malgun.ttf", "bold_path": "malgunbd.ttf"}}}
+{"defaults": {"font": {"name": "nanumgothic", "size": "20", "regular_path": "assets/fonts/NanumGothic.ttf", "bold_path": "assets/fonts/NanumGothicBold.ttf"}}}
